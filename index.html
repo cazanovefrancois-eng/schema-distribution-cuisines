@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Schéma de distribution – Cuisines régionales (La Réunion)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    :root {
+      --bg:#0b1220; --card:#101a2f; --muted:#9fb0d0; --text:#e8eefc; --accent:#4da3ff; --ok:#35d07f; --warn:#ffc14d; --bad:#ff5c7a;
+      --border:rgba(255,255,255,.10);
+      --radius:16px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    body { margin:0; background:linear-gradient(180deg,#07101f,#050913); color:var(--text); }
+    header{
+      padding:18px 18px 12px; border-bottom:1px solid var(--border);
+      position:sticky; top:0; background:rgba(7,16,31,.92); backdrop-filter: blur(8px); z-index:10;
+    }
+    header h1 { margin:0; font-size:18px; font-weight:700; letter-spacing:.2px; }
+    header .sub { margin-top:6px; color:var(--muted); font-size:13px; display:flex; gap:10px; flex-wrap:wrap; }
+    .pill { border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; }
+    .container { padding:16px; max-width:1200px; margin:0 auto; }
+    .tabs { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .tabbtn{
+      cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text);
+      padding:10px 12px; border-radius:999px; font-size:13px;
+    }
+    .tabbtn.active{ background:rgba(77,163,255,.16); border-color:rgba(77,163,255,.45); }
+    .grid { display:grid; gap:14px; }
+    @media(min-width: 900px){ .grid.two{ grid-template-columns: 1.1fr .9fr; } }
+    .card{
+      background:linear-gradient(180deg, rgba(16,26,47,.92), rgba(10,16,30,.92));
+      border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow: 0 12px 35px rgba(0,0,0,.22);
+    }
+    .card h2 { margin:0 0 10px; font-size:15px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    label { font-size:12px; color:var(--muted); }
+    input, select, textarea{
+      background:#0a1326; color:var(--text); border:1px solid var(--border);
+      padding:10px 10px; border-radius:12px; outline:none; font-size:13px;
+    }
+    textarea{ width:100%; min-height:120px; }
+    .btn{
+      cursor:pointer; border:1px solid rgba(77,163,255,.45); background:rgba(77,163,255,.14);
+      color:var(--text); padding:10px 12px; border-radius:12px; font-size:13px;
+    }
+    .btn.secondary{ border-color:var(--border); background:transparent; }
+    .btn.ok{ border-color:rgba(53,208,127,.55); background:rgba(53,208,127,.14); }
+    .btn.bad{ border-color:rgba(255,92,122,.65); background:rgba(255,92,122,.12); }
+    .small{ font-size:12px; color:var(--muted); }
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ border-bottom:1px solid var(--border); padding:10px 8px; font-size:13px; text-align:left; vertical-align:top; }
+    th{ color:var(--muted); font-weight:600; font-size:12px; }
+    .tag{ font-size:11px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); display:inline-block; }
+    .tag.c{ border-color:rgba(77,163,255,.55); background:rgba(77,163,255,.10); }
+    .tag.s{ border-color:rgba(255,193,77,.55); background:rgba(255,193,77,.10); }
+    #map{ height: 520px; border-radius: 14px; overflow:hidden; border:1px solid var(--border); }
+    .side{ max-height:520px; overflow:auto; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .kpi{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+    .kpi .k{ padding:10px; border:1px solid var(--border); border-radius:14px; }
+    .k .v{ font-size:18px; font-weight:750; }
+    .k .l{ font-size:11px; color:var(--muted); margin-top:4px; }
+    .hint{ padding:10px; border:1px dashed rgba(255,255,255,.18); border-radius:14px; color:var(--muted); font-size:12px; }
+    .hidden{ display:none; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Schéma de distribution – Cuisines régionales (La Réunion)</h1>
+  <div class="sub">
+    <span class="pill">Mode HTML (Base44)</span>
+    <span class="pill">Centrales + Satellites</span>
+    <span class="pill">Distance/Temps + Optimisation</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tabbtn active" data-tab="donnees">1) Données</button>
+    <button class="tabbtn" data-tab="carte">2) Carte</button>
+    <button class="tabbtn" data-tab="calculs">3) Calculs</button>
+    <button class="tabbtn" data-tab="optim">4) Optimisation</button>
+    <button class="tabbtn" data-tab="synthese">5) Synthèse</button>
+    <button class="tabbtn" data-tab="import">Import JSON</button>
+  </div>
+
+  <div id="tab-donnees" class="tab card">
+    <div class="grid two">
+      <div class="card">
+        <h2>Établissements</h2>
+        <div class="row">
+          <div>
+            <label>Recherche</label><br/>
+            <input id="searchEtab" placeholder="Nom ou UAI…" />
+          </div>
+          <div>
+            <label>Type</label><br/>
+            <select id="filterType">
+              <option value="ALL">Tous</option>
+              <option value="CENTRALE">Centrales</option>
+              <option value="SATELLITE">Satellites</option>
+            </select>
+          </div>
+          <div>
+            <label>Commune</label><br/>
+            <select id="filterCommune"><option value="ALL">Toutes</option></select>
+          </div>
+          <div style="flex:1"></div>
+          <button class="btn secondary" id="syncCentralesBtn">Synchroniser la liste des centrales</button>
+        </div>
+        <div class="hint" style="margin-top:10px;">
+          Astuce : si un établissement (ex : <b>Jean Hinglo</b>) devient <b>CENTRALE</b>, change son rôle puis clique <b>Synchroniser</b>.
+        </div>
+        <div style="margin-top:12px; overflow:auto; max-height:520px;">
+          <table id="etabTable">
+            <thead>
+              <tr>
+                <th>Type</th><th>UAI</th><th>Nom</th><th>Commune</th><th>Repas/j</th><th>Rôle</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card side">
+        <h2>Détails</h2>
+        <div id="etabDetails" class="small">Clique un établissement dans la liste.</div>
+        <div style="margin-top:12px;" class="row">
+          <button class="btn ok" id="toggleRoleBtn" disabled>Changer le rôle</button>
+          <button class="btn secondary" id="centerOnMapBtn" disabled>Voir sur la carte</button>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--border); margin:14px 0;">
+        <h2>Paramètres</h2>
+        <div class="row">
+          <div><label>Heure départ</label><br/><input id="pDepart" style="width:110px" /></div>
+          <div><label>Heure retour</label><br/><input id="pRetour" style="width:110px" /></div>
+          <div><label>Vitesse (km/h)</label><br/><input id="pVitesse" type="number" style="width:110px" /></div>
+          <div><label>Distance max (km)</label><br/><input id="pDistMax" type="number" style="width:110px" /></div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div><label>Poids distance</label><br/><input id="pWD" type="number" step="0.05" style="width:110px" /></div>
+          <div><label>Poids repas</label><br/><input id="pWR" type="number" step="0.05" style="width:110px" /></div>
+          <div style="flex:1"></div>
+          <button class="btn" id="saveParamsBtn">Enregistrer</button>
+        </div>
+        <div class="small" id="paramsSaved" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-carte" class="tab card hidden">
+    <div class="grid two">
+      <div class="card">
+        <h2>Carte (OpenStreetMap)</h2>
+        <div class="row">
+          <div>
+            <label>Centrale</label><br/>
+            <select id="mapCentrale"><option value="ALL">Toutes</option></select>
+          </div>
+          <div>
+            <label>Statut affectation</label><br/>
+            <select id="mapStatut">
+              <option value="ALL">Tous</option>
+              <option value="VALIDEE">Validées</option>
+              <option value="PROPOSEE">Proposées</option>
+            </select>
+          </div>
+          <div style="flex:1"></div>
+          <button class="btn secondary" id="refreshMapBtn">Rafraîchir</button>
+        </div>
+        <div style="margin-top:12px;" id="map"></div>
+      </div>
+      <div class="card side">
+        <h2>Infos (clic sur un marqueur)</h2>
+        <div id="mapSide" class="small">Clique une centrale ou un satellite sur la carte.</div>
+        <div style="margin-top:12px;" class="row">
+          <button class="btn" id="calcForOneBtn" disabled>Calculer distances (1 satellite)</button>
+          <button class="btn ok" id="proposeForOneBtn" disabled>Proposer meilleure centrale</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-calculs" class="tab card hidden">
+    <h2>Calcul distance / temps (estimation)</h2>
+    <div class="hint">
+      Calcul autonome : distance Haversine (vol d’oiseau) + temps estimé (distance / vitesse).
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" id="calcAllBtn">Calculer pour toutes les affectations</button>
+      <button class="btn secondary" id="clearCalcBtn">Effacer distances/temps</button>
+      <div style="flex:1"></div>
+      <span class="small" id="calcStatus"></span>
+    </div>
+    <div style="margin-top:12px; overflow:auto; max-height:520px;">
+      <table id="affTable">
+        <thead>
+          <tr>
+            <th>Statut</th><th>Satellite</th><th>Centrale</th><th>Repas/j</th><th>Distance (km)</th><th>Temps (min)</th><th>Score</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-optim" class="tab card hidden">
+    <h2>Optimisation (propositions)</h2>
+    <div class="row">
+      <button class="btn ok" id="proposeAllBtn">Proposer affectations (tous les satellites)</button>
+      <button class="btn secondary" id="resetProposalsBtn">Annuler toutes les propositions</button>
+      <div style="flex:1"></div>
+      <span class="small" id="optimStatus"></span>
+    </div>
+    <div class="hint" style="margin-top:10px;">
+      Score = proximité (distance) + volume (repas), pondéré par tes paramètres.
+    </div>
+    <div style="margin-top:12px; overflow:auto; max-height:520px;">
+      <table id="proposalsTable">
+        <thead>
+          <tr>
+            <th>Satellite</th><th>Repas/j</th><th>Centrale proposée</th><th>Distance</th><th>Temps</th><th>Score</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-synthese" class="tab card hidden">
+    <h2>Synthèse par centrale (VALIDÉE)</h2>
+    <div class="row">
+      <button class="btn" id="exportAffectBtn">Exporter AFFECTATIONS (CSV)</button>
+      <button class="btn secondary" id="exportSynthBtn">Exporter SYNTHESE (CSV)</button>
+      <div style="flex:1"></div>
+      <span class="small" id="exportStatus"></span>
+    </div>
+
+    <div class="kpi" style="margin-top:12px;">
+      <div class="k"><div class="v" id="kpiCentrales">-</div><div class="l">Centrales</div></div>
+      <div class="k"><div class="v" id="kpiSatellites">-</div><div class="l">Satellites</div></div>
+      <div class="k"><div class="v" id="kpiRepas">-</div><div class="l">Repas/j total (validé)</div></div>
+      <div class="k"><div class="v" id="kpiDist">-</div><div class="l">Distance moyenne (km)</div></div>
+    </div>
+
+    <div style="margin-top:12px; overflow:auto; max-height:520px;">
+      <table id="synthTable">
+        <thead>
+          <tr>
+            <th>Centrale</th><th>Satellites</th><th>Repas midi</th><th>Repas soir</th><th>Repas/j</th><th>Dist. moy (km)</th><th>Temps moy (min)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-import" class="tab card hidden">
+    <h2>Import JSON (remplacer les données)</h2>
+    <div class="hint">
+      Colle un JSON avec les clés <span class="mono">ETABLISSEMENTS</span>, <span class="mono">AFFECTATIONS</span>, <span class="mono">PARAMETRES</span>.
+    </div>
+    <div style="margin-top:10px;">
+      <textarea id="importArea" class="mono"></textarea>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn ok" id="importBtn">Importer</button>
+      <button class="btn secondary" id="fillExampleBtn">Mettre l'exemple</button>
+      <div style="flex:1"></div>
+      <span class="small" id="importStatus"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+// Données intégrées (issues de tes fichiers V2)
+let ETABLISSEMENTS = [{"uai":"9740001H","nom":"Lycée général et technologique Leconte de Lisle","type":"SATELLITE","commune":"Saint-Denis","lat":-20.88738991843578,"lon":55.4697562920468,"repas_midi":310,"repas_soir":90,"adresse":"3 allée des étudiants 97490"},{"uai":"9740002J","nom":"Lycée polyvalent Roland Garros","type":"SATELLITE","commune":"Le Tampon","lat":-21.2749718463059,"lon":55.52100746761352,"repas_midi":700,"repas_soir":220,"adresse":"Rue Roland Garros 97831"},{"uai":"9740004L","nom":"Lycée professionnel Roches Maigres","type":"SATELLITE","commune":"Saint-Louis","lat":-21.27465640781026,"lon":55.413199758097726,"repas_midi":211,"repas_soir":44,"adresse":"25 rue Leconte de Lisle 97899"},{"uai":"9740015Y","nom":"Lycée professionnel de Vue Belle","type":"CENTRALE","commune":"Saint-Paul","lat":-21.078877423150857,"lon":55.27027139479946,"repas_midi":447,"repas_soir":33,"adresse":"Chemin Vue belle 97422"},{"uai":"9740018B","nom":"Collège Harry GRUCHET - La Chaloupe Saint-Leu","type":"SATELLITE","commune":"Saint-Leu","lat":-21.15149863626656,"lon":55.3204181598646,"repas_midi":370,"repas_soir":0,"adresse":"202 rue Alexandre Bègue 97416"},{"uai":"9740019C","nom":"Lycée général et technologique Ambroise Vollard","type":"CENTRALE","commune":"Saint-Pierre","lat":-21.342355161755403,"lon":55.490246670663545,"repas_midi":480,"repas_soir":100,"adresse":"3 avenue de Soweto 97448"},{"uai":"9740020D","nom":"Lycée professionnel Victor Schoelcher","type":"SATELLITE","commune":"Saint-Louis","lat":-21.289670406870243,"lon":55.40657162287751,"repas_midi":220,"repas_soir":39,"adresse":"14 rue Saint Philippe 97899"},{"uai":"9740022F","nom":"Collège Adrien Cerneau","type":"SATELLITE","commune":"Sainte-Marie","lat":-20.894983725869047,"lon":55.55265817027803,"repas_midi":290,"repas_soir":0,"adresse":"1 rue Noël Tessier 97438"},{"uai":"9740042C","nom":"Collège de la Montagne","type":"SATELLITE","commune":"Saint-Denis","lat":-20.893340132831486,"lon":55.422455336711415,"repas_midi":700,"repas_soir":0,"adresse":"51 chemin du Colorado 97417"},{"uai":"9740043D","nom":"Lycée général et technologique Sarda Garriga","type":"SATELLITE","commune":"Saint-André","lat":-20.96501866432401,"lon":55.65437500585491,"repas_midi":570,"repas_soir":0,"adresse":"755 rue de la Communauté 97440"},{"uai":"9740044E","nom":"Collège Thérésien Cadet","type":"SATELLITE","commune":"Sainte-Rose","lat":-21.15428174859496,"lon":55.82546413155988,"repas_midi":500,"repas_soir":0,"adresse":"69 allée du jardin 97439"},{"uai":"9740045F","nom":"Lycée polyvalent Antoine de Saint-Exupéry","type":"CENTRALE","commune":"Les Avirons","lat":-21.239266851256662,"lon":55.33616153780805,"repas_midi":450,"repas_soir":12,"adresse":"20 rue du lycée 97425"},{"uai":"9740046G","nom":"Collège Fanny Desjardins","type":"SATELLITE","commune":"Bras-Panon","lat":-21.000653155835508,"lon":55.6835730754836,"repas_midi":483,"repas_soir":0,"adresse":"30 rue Edmond Albius 97412"},{"uai":"9740053P","nom":"Lycée polyvalent Georges Brassens","type":"SATELLITE","commune":"Saint-Denis","lat":-20.903930582270327,"lon":55.48421518147244,"repas_midi":520,"repas_soir":110,"adresse":"16 avenue Georges Brassens 97493"},{"uai":"9740054R","nom":"Lycée général et technologique Lislet Geoffroy","type":"SATELLITE","commune":"Saint-Denis","lat":-20.89056698757068,"lon":55.467240245510105,"repas_midi":210,"repas_soir":30,"adresse":"15 rue Christol de Sigoyer 97491"},{"uai":"9740065C","nom":"Collège du Bassin Bleu","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.08467589515356,"lon":55.74314740552955,"repas_midi":379,"repas_soir":0,"adresse":"17 chemin Morange 97470"},{"uai":"9740082W","nom":"Lycée professionnel Julien de Rontaunay","type":"SATELLITE","commune":"Saint-Denis","lat":-20.888811388662027,"lon":55.47031958400322,"repas_midi":60,"repas_soir":10,"adresse":"Cité scolaire du Butor 97492"},{"uai":"9740083X","nom":"Collège Amiral Pierre Bouvet","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.04490310971959,"lon":55.71872706153563,"repas_midi":113,"repas_soir":0,"adresse":"50 rue Auguste de Villèle 97470"},{"uai":"9740085Z","nom":"Collège Jeanne BARRET - Trois Bassins","type":"SATELLITE","commune":"Les Trois-Bassins","lat":-21.10363300877319,"lon":55.29652293008688,"repas_midi":230,"repas_soir":0,"adresse":"19 rue Georges Brassens 97426"},{"uai":"9740091F","nom":"Collège Leconte de Lisle","type":"SATELLITE","commune":"Saint-Louis","lat":-21.274360180227163,"lon":55.41464365979838,"repas_midi":372,"repas_soir":0,"adresse":"25 rue Leconte de Lisle 97450"},{"uai":"9740094J","nom":"Collège Hippolyte Foucque","type":"SATELLITE","commune":"Sainte-Suzanne","lat":-20.902041563275315,"lon":55.59914376045121,"repas_midi":420,"repas_soir":0,"adresse":"1 avenue Pierre Mendès France 97441"},{"uai":"9740471U","nom":"Lycée général et technologique Jean-Claude Fruteau","type":"CENTRALE","commune":"Saint-Benoît","lat":-21.0421710017335,"lon":55.71893326885004,"repas_midi":308,"repas_soir":30,"adresse":"76 rue Joseph Hubert 97470"},{"uai":"9740472V","nom":"Lycée professionnel Patu de Rosemont","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.04344576775697,"lon":55.71690828035469,"repas_midi":298,"repas_soir":27,"adresse":"72 rue Joseph Hubert 97470"},{"uai":"9740479C","nom":"Lycée professionnel Amiral Lacaze","type":"SATELLITE","commune":"Saint-Denis","lat":-20.89205560468384,"lon":55.47591964282426,"repas_midi":90,"repas_soir":0,"adresse":"1 avenue Stanislas Gimart 97493"},{"uai":"9740546A","nom":"Collège Marcel Goulette","type":"SATELLITE","commune":"Saint-Leu","lat":-21.21737393373981,"lon":55.30675698325776,"repas_midi":750,"repas_soir":0,"adresse":"2 rue Julien Dupont 97424"},{"uai":"9740572D","nom":"Collège Les Deux Canons","type":"SATELLITE","commune":"Saint-Denis","lat":-20.89166339918883,"lon":55.47650996498801,"repas_midi":460,"repas_soir":0,"adresse":"40 avenue de Lattre de Tassigny 97491"},{"uai":"9740595D","nom":"Collège Jules Reydellet","type":"SATELLITE","commune":"Saint-Denis","lat":-20.88378391510981,"lon":55.446528109049474,"repas_midi":270,"repas_soir":0,"adresse":"107 rue de la République 97489"},{"uai":"9740597F","nom":"Lycée général et technologique Évariste de Parny","type":"SATELLITE","commune":"Saint-Paul","lat":-21.0284006513804,"lon":55.27085753441507,"repas_midi":750,"repas_soir":23,"adresse":"85 rue Auguste Vinson 97867"},{"uai":"9740599H","nom":"Collège Joseph Bédier","type":"SATELLITE","commune":"Saint-André","lat":-20.95738158922722,"lon":55.64845081999059,"repas_midi":295,"repas_soir":0,"adresse":"105 rue Joseph Bédier 97440"},{"uai":"9740618D","nom":"Collège Boris GAMALEYA Les Alizés","type":"SATELLITE","commune":"Saint-Denis","lat":-20.899458351893493,"lon":55.48545981655612,"repas_midi":190,"repas_soir":0,"adresse":"70 avenue Joseph Bedier 97492"},{"uai":"9740702V","nom":"Collège Hubert Delisle","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.03246028758341,"lon":55.708168186384896,"repas_midi":418,"repas_soir":0,"adresse":"79 rue Montfleury 97470"},{"uai":"9740703W","nom":"Collège Cambuston - Claude MAHOUDEAUX","type":"SATELLITE","commune":"Saint-André","lat":-20.92863389646492,"lon":55.64613866718843,"repas_midi":430,"repas_soir":0,"adresse":"380 rue Bois Rouge 97440"},{"uai":"9740737H","nom":"Lycée professionnel Albert Ramassamy","type":"SATELLITE","commune":"Saint-Denis","lat":-20.906072576143583,"lon":55.48505021580902,"repas_midi":210,"repas_soir":0,"adresse":"25 avenue Georges Brassens 97408"},{"uai":"9740738J","nom":"Lycée Hôtelier Christian Antou","type":"CENTRALE","commune":"Saint-Paul","lat":-21.027366830241984,"lon":55.26929940501959,"repas_midi":450,"repas_soir":277,"adresse":"63 rue Auguste Vinson 97867"},{"uai":"9740787M","nom":"Lycée général et technologique Antoine Roussin","type":"SATELLITE","commune":"Saint-Louis","lat":-21.274360180227163,"lon":55.41464365979838,"repas_midi":267,"repas_soir":73,"adresse":"25 rue Leconte de Lisle 97871"},{"uai":"9740811N","nom":"Collège Terre Sainte","type":"SATELLITE","commune":"Saint-Pierre","lat":-21.346637433006148,"lon":55.48971590341287,"repas_midi":340,"repas_soir":0,"adresse":"2 rue Thérésien Cadet 97410"},{"uai":"9740910W","nom":"Lycée professionnel Jean Perrin","type":"CENTRALE","commune":"Saint-André","lat":-20.963897097668283,"lon":55.65362909225666,"repas_midi":300,"repas_soir":30,"adresse":"Rue du Lycée 97440"},{"uai":"9740921H","nom":"Lycée professionnel Isnelle Amelin","type":"SATELLITE","commune":"Sainte-Marie","lat":-20.90274230046585,"lon":55.52138537707036,"repas_midi":300,"repas_soir":90,"adresse":"Rue Marcel Goulette 97438"},{"uai":"9740952S","nom":"Lycée général et technologique Pierre Poivre","type":"SATELLITE","commune":"Saint-Joseph","lat":-21.37458275430744,"lon":55.62461869188439,"repas_midi":370,"repas_soir":0,"adresse":"35 rue Hippolyte Foucque 97480"},{"uai":"9741044S","nom":"Collège les Mascareignes","type":"SATELLITE","commune":"Saint-Denis","lat":-20.91203399802385,"lon":55.50373446933995,"repas_midi":490,"repas_soir":0,"adresse":"3 chemin du Case 97490"},{"uai":"9741046U","nom":"Lycée général et technologique Marguerite Jauzelon","type":"CENTRALE","commune":"Saint-Denis","lat":-20.89509326333512,"lon":55.44977711179685,"repas_midi":550,"repas_soir":0,"adresse":"51 avenue Gaston Monnerville 97475"},{"uai":"9741048W","nom":"Collège Pointe des Châteaux","type":"SATELLITE","commune":"Saint-Leu","lat":-21.146162739646726,"lon":55.27600753620432,"repas_midi":480,"repas_soir":0,"adresse":"48 rue Georges Pompidou 97436"},{"uai":"9741051Z","nom":"Lycée polyvalent Paul Moreau","type":"SATELLITE","commune":"Bras-Panon","lat":-21.00227980322187,"lon":55.68271030606689,"repas_midi":411,"repas_soir":42,"adresse":"51 chemin Bras Panon 97412"},{"uai":"9741052A","nom":"Lycée polyvalent Gérard Ethève","type":"SATELLITE","commune":"Saint-Leu","lat":-21.167091437420737,"lon":55.2873504176014,"repas_midi":550,"repas_soir":28,"adresse":"Chemin départemental 11 97424"},{"uai":"9741087N","nom":"Lycée polyvalent Boisjoly Potier","type":"SATELLITE","commune":"Le Tampon","lat":-21.249857133024022,"lon":55.52473198285367,"repas_midi":400,"repas_soir":0,"adresse":"1 rue Ignaz Pleyel 97839"},{"uai":"9741173G","nom":"Lycée polyvalent Moulin Joli","type":"SATELLITE","commune":"La Possession","lat":-20.949579025134387,"lon":55.32730726255666,"repas_midi":565,"repas_soir":0,"adresse":"60 rue Mahatma Gandhi 97419"},{"uai":"9741182S","nom":"Lycée polyvalent Jean Joly","type":"SATELLITE","commune":"Saint-Louis","lat":-21.27167607018354,"lon":55.43672628275461,"repas_midi":460,"repas_soir":0,"adresse":"2 chemin la Ouette 97421"},{"uai":"9741185V","nom":"Lycée général et technologique le Verger","type":"SATELLITE","commune":"Sainte-Marie","lat":-20.899914916172104,"lon":55.54581910702997,"repas_midi":450,"repas_soir":0,"adresse":"1 avenue des Corossols 97438"},{"uai":"9741186W","nom":"Lycée polyvalent Paule Pignolet De Fresne Rivière","type":"SATELLITE","commune":"Les Trois-Bassins","lat":-21.103460742290228,"lon":55.302130762853096,"repas_midi":350,"repas_soir":11,"adresse":"81 rue Georges Brassens 97426"},{"uai":"9741188Y","nom":"Collège Bois de Nèfles","type":"SATELLITE","commune":"Saint-Denis","lat":-20.910311930384747,"lon":55.478443395587874,"repas_midi":520,"repas_soir":0,"adresse":"Chemin des Franciscéas 97493"},{"uai":"9741206T","nom":"Lycée polyvalent de Bois d'Olive","type":"SATELLITE","commune":"Saint-Pierre","lat":-21.298387733913355,"lon":55.45734818298069,"repas_midi":520,"repas_soir":4,"adresse":"112 avenue Laurent Vergès 97432"},{"uai":"9741230U","nom":"Lycée polyvalent de Vincendo","type":"SATELLITE","commune":"Saint-Joseph","lat":-21.37716118427492,"lon":55.668217284211885,"repas_midi":212,"repas_soir":0,"adresse":"10 route de la Marine 97480"},{"uai":"9741231V","nom":"Lycée polyvalent Marie Curie","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.07940617225745,"lon":55.73946285995142,"repas_midi":483,"repas_soir":65,"adresse":"81 rue Roger Dijoux 97437"},{"uai":"9741233X","nom":"Lycée polyvalent Nelson Mandela","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.04917460179576,"lon":55.71040291152662,"repas_midi":190,"repas_soir":9,"adresse":"69 chemin Pinguet 97470"},{"uai":"9741237B","nom":"Collège de Quartier Français","type":"SATELLITE","commune":"Sainte-Suzanne","lat":-20.933515260834493,"lon":55.6372204770412,"repas_midi":744,"repas_soir":0,"adresse":"12 avenue Raymond Vergès 97441"},{"uai":"9741260B","nom":"Collège Émile Hugot","type":"SATELLITE","commune":"Saint-Denis","lat":-20.906370093886263,"lon":55.50271009981495,"repas_midi":400,"repas_soir":0,"adresse":"7 rue d'Emmerez de Charmoy 97494"},{"uai":"9741261C","nom":"Collège Terrain Fayard","type":"SATELLITE","commune":"Saint-André","lat":-20.94767440202813,"lon":55.65675445000811,"repas_midi":230,"repas_soir":0,"adresse":"1395 chemin du Centre 97440"},{"uai":"9741263E","nom":"Lycée polyvalent Pierre Lagourgue","type":"SATELLITE","commune":"Le Tampon","lat":-21.25780203100588,"lon":55.50803230542492,"repas_midi":365,"repas_soir":0,"adresse":"30 Chemin Mazeau 97430"},{"uai":"9741270M","nom":"Lycée polyvalent Bel Air","type":"SATELLITE","commune":"Sainte-Suzanne","lat":-20.905045021274223,"lon":55.6015385366971,"repas_midi":383,"repas_soir":24,"adresse":"2 rue du lycée 97441"},{"uai":"9741323V","nom":"Collège Beauséjour","type":"SATELLITE","commune":"Sainte-Marie","lat":-20.92491442692108,"lon":55.52842997669753,"repas_midi":650,"repas_soir":0,"adresse":"Route Odon-Beauséjour 97438"},{"uai":"9741324W","nom":"Lycée général et technologique Mahatma Gandhi","type":"CENTRALE","commune":"Saint-André","lat":-20.97578959411199,"lon":55.651849944300885,"repas_midi":386,"repas_soir":0,"adresse":"ZAC Portes des Salazes 97440"},{"uai":"9741366S","nom":"Collège Guy Môquet","type":"SATELLITE","commune":"Saint-Benoît","lat":-21.053232645145545,"lon":55.711358220557344,"repas_midi":350,"repas_soir":0,"adresse":"55 rue des Poinsettias 97470"},{"uai":"9741380G","nom":"Lycée polyvalent Paul Vergès","type":"SATELLITE","commune":"Saint-Paul","lat":-20.978320417720937,"lon":55.31721038832109,"repas_midi":690,"repas_soir":0,"adresse":"Canal Traverse 97411"},{"uai":"9741386N","nom":"Collège HEVA - CHEMIN MORIN","type":"SATELLITE","commune":"Saint-André","lat":-20.967961128124884,"lon":55.64595319235297,"repas_midi":478,"repas_soir":0,"adresse":"300 chemin Morin 97440"},{"uai":"9741582B","nom":"Section d'enseignement professionnel du Lycée Jean Joly","type":"SATELLITE","commune":"Saint-Louis","lat":-21.27167607018354,"lon":55.43672628275461,"repas_midi":0,"repas_soir":24,"adresse":"2 chemin La Ouette 97421"},{"uai":"9741620T","nom":"Lycée polyvalent Mémona Hintermann-Afféjee","type":"SATELLITE","commune":"Saint-Denis","lat":-20.909565079153445,"lon":55.47795967340268,"repas_midi":450,"repas_soir":100,"adresse":"1 rue des franciscéas 97491"},{"uai":"9740979W","nom":"Lycée polyvalent Jean Hinglo","type":"CENTRALE","commune":"Le Port","lat":-20.949057105966464,"lon":55.29196621377525,"repas_midi":520,"repas_soir":104,"adresse":"2 rue des Sans-Soucis BP 2021 97825 Le Port"}];
+let AFFECTATIONS = [{"satellite_uai":"9741270M","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741233X","centrale_uai":"9740471U","repas_midi":190,"repas_soir":9,"repas_total_jour":199,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740001H","centrale_uai":"9741046U","repas_midi":310,"repas_soir":90,"repas_total_jour":400,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741186W","centrale_uai":"9740045F","repas_midi":350,"repas_soir":0,"repas_total_jour":350,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741206T","centrale_uai":"9740019C","repas_midi":520,"repas_soir":0,"repas_total_jour":520,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740472V","centrale_uai":"9740471U","repas_midi":298,"repas_soir":27,"repas_total_jour":325,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740054R","centrale_uai":"9741046U","repas_midi":210,"repas_soir":30,"repas_total_jour":240,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741052A","centrale_uai":"9740045F","repas_midi":550,"repas_soir":0,"repas_total_jour":550,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741263E","centrale_uai":"9740019C","repas_midi":365,"repas_soir":0,"repas_total_jour":365,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740921H","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741051Z","centrale_uai":"9740471U","repas_midi":411,"repas_soir":42,"repas_total_jour":453,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740082W","centrale_uai":"9741046U","repas_midi":60,"repas_soir":10,"repas_total_jour":70,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741173G","centrale_uai":"9740045F","repas_midi":565,"repas_soir":0,"repas_total_jour":565,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741182S","centrale_uai":"9740019C","repas_midi":460,"repas_soir":0,"repas_total_jour":460,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741185V","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741231V","centrale_uai":"9740471U","repas_midi":483,"repas_soir":65,"repas_total_jour":548,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740479C","centrale_uai":"9741046U","repas_midi":90,"repas_soir":0,"repas_total_jour":90,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741380G","centrale_uai":"9740045F","repas_midi":690,"repas_soir":0,"repas_total_jour":690,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740002J","centrale_uai":"9740019C","repas_midi":700,"repas_soir":220,"repas_total_jour":920,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741270M","centrale_uai":"9740471U","repas_midi":383,"repas_soir":24,"repas_total_jour":407,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740053P","centrale_uai":"9741046U","repas_midi":520,"repas_soir":110,"repas_total_jour":630,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740952S","centrale_uai":"9740019C","repas_midi":370,"repas_soir":0,"repas_total_jour":370,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741324W","centrale_uai":"9740471U","repas_midi":386,"repas_soir":0,"repas_total_jour":386,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740737H","centrale_uai":"9741046U","repas_midi":210,"repas_soir":0,"repas_total_jour":210,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740020D","centrale_uai":"9740019C","repas_midi":220,"repas_soir":0,"repas_total_jour":220,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741620T","centrale_uai":"9741046U","repas_midi":450,"repas_soir":100,"repas_total_jour":550,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741087N","centrale_uai":"9740019C","repas_midi":400,"repas_soir":0,"repas_total_jour":400,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740921H","centrale_uai":"9741046U","repas_midi":300,"repas_soir":90,"repas_total_jour":390,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741230U","centrale_uai":"9740019C","repas_midi":212,"repas_soir":0,"repas_total_jour":212,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741185V","centrale_uai":"9741046U","repas_midi":450,"repas_soir":0,"repas_total_jour":450,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740083X","centrale_uai":"9740471U","repas_midi":113,"repas_soir":0,"repas_total_jour":113,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741188Y","centrale_uai":"9741046U","repas_midi":520,"repas_soir":0,"repas_total_jour":520,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740044E","centrale_uai":"9740045F","repas_midi":500,"repas_soir":0,"repas_total_jour":500,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740811N","centrale_uai":"9740019C","repas_midi":340,"repas_soir":0,"repas_total_jour":340,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740022F","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740702V","centrale_uai":"9740471U","repas_midi":418,"repas_soir":0,"repas_total_jour":418,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740042C","centrale_uai":"9741046U","repas_midi":700,"repas_soir":0,"repas_total_jour":700,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740546A","centrale_uai":"9740045F","repas_midi":750,"repas_soir":0,"repas_total_jour":750,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741323V","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740065C","centrale_uai":"9740471U","repas_midi":379,"repas_soir":0,"repas_total_jour":379,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740618D","centrale_uai":"9741046U","repas_midi":190,"repas_soir":0,"repas_total_jour":190,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740018B","centrale_uai":"9740045F","repas_midi":370,"repas_soir":0,"repas_total_jour":370,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741237B","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740703W","centrale_uai":"9740471U","repas_midi":430,"repas_soir":0,"repas_total_jour":430,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740572D","centrale_uai":"9741046U","repas_midi":460,"repas_soir":0,"repas_total_jour":460,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741048W","centrale_uai":"9740045F","repas_midi":480,"repas_soir":0,"repas_total_jour":480,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740599H","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741261C","centrale_uai":"9740471U","repas_midi":230,"repas_soir":0,"repas_total_jour":230,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740595D","centrale_uai":"9741046U","repas_midi":270,"repas_soir":0,"repas_total_jour":270,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740085Z","centrale_uai":"9740045F","repas_midi":230,"repas_soir":0,"repas_total_jour":230,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740046G","centrale_uai":"9740471U","repas_midi":483,"repas_soir":0,"repas_total_jour":483,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741260B","centrale_uai":"9741046U","repas_midi":400,"repas_soir":0,"repas_total_jour":400,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741386N","centrale_uai":"9741324W","repas_midi":0,"repas_soir":0,"repas_total_jour":0,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741366S","centrale_uai":"9740471U","repas_midi":350,"repas_soir":0,"repas_total_jour":350,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741044S","centrale_uai":"9741046U","repas_midi":490,"repas_soir":0,"repas_total_jour":490,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741237B","centrale_uai":"9740471U","repas_midi":744,"repas_soir":0,"repas_total_jour":744,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741323V","centrale_uai":"9741046U","repas_midi":650,"repas_soir":0,"repas_total_jour":650,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740599H","centrale_uai":"9740471U","repas_midi":295,"repas_soir":0,"repas_total_jour":295,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740022F","centrale_uai":"9741046U","repas_midi":290,"repas_soir":0,"repas_total_jour":290,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740094J","centrale_uai":"9740471U","repas_midi":420,"repas_soir":0,"repas_total_jour":420,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741386N","centrale_uai":"9740471U","repas_midi":478,"repas_soir":0,"repas_total_jour":478,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740597F","centrale_uai":"9740738J","repas_midi":750,"repas_soir":0,"repas_total_jour":750,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740597F","centrale_uai":"9740015Y","repas_midi":0,"repas_soir":23,"repas_total_jour":23,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740043D","centrale_uai":"9740910W","repas_midi":570,"repas_soir":0,"repas_total_jour":570,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9740738J","centrale_uai":"9740015Y","repas_midi":0,"repas_soir":97,"repas_total_jour":97,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"},{"satellite_uai":"9741186W","centrale_uai":"9740015Y","repas_midi":0,"repas_soir":11,"repas_total_jour":11,"distance_km":null,"temps_min":null,"score":null,"statut":"VALIDEE","commentaire":"Import schéma 2025-2026"}];
+let PARAMETRES = {"heure_depart":"06:00","heure_retour":"08:00","poids_distance":0.6,"poids_repas":0.4,"distance_max_km":60.0,"vitesse_kmh":40.0};
+
+// Utilitaires
+const byId = (id) => document.getElementById(id);
+const norm = (s) => (s||"").toString().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu,"");
+const fmt = (n, d=0) => (n===null||n===undefined||Number.isNaN(n)) ? "" : Number(n).toFixed(d).replace(".", ",");
+const round = (n, d=2) => (n===null||n===undefined||Number.isNaN(n)) ? null : Number(Number(n).toFixed(d));
+
+function getEtab(uai){ return ETABLISSEMENTS.find(e => e.uai===uai) || null; }
+function repasTotal(e){ return (e.repas_midi||0) + (e.repas_soir||0); }
+function computeTotals(){ ETABLISSEMENTS.forEach(e => e.repas_total_jour = repasTotal(e)); }
+computeTotals();
+
+function centralesList(){ return ETABLISSEMENTS.filter(e=>e.type==="CENTRALE"); }
+function satellitesList(){ return ETABLISSEMENTS.filter(e=>e.type==="SATELLITE"); }
+
+// Haversine (km)
+function haversineKm(lat1, lon1, lat2, lon2){
+  const toRad = (x) => x * Math.PI / 180;
+  const R = 6371;
+  const dLat = toRad(lat2-lat1);
+  const dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+function estTimeMin(distanceKm){
+  const v = Math.max(5, Number(PARAMETRES.vitesse_kmh||40));
+  return (distanceKm / v) * 60;
+}
+
+// Tabs
+document.querySelectorAll(".tabbtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabbtn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    const tab = btn.dataset.tab;
+    document.querySelectorAll(".tab").forEach(t=>t.classList.add("hidden"));
+    byId("tab-"+tab).classList.remove("hidden");
+    if(tab==="carte") setTimeout(()=>{ mapInvalidate(); refreshMap(); }, 50);
+    if(tab==="calculs") renderAffectationsTable();
+    if(tab==="optim") renderProposalsTable();
+    if(tab==="synthese") renderSynthese();
+  });
+});
+
+// Données page
+let selectedUAI = null;
+
+function populateCommunes(){
+  const communes = Array.from(new Set(ETABLISSEMENTS.map(e=>e.commune).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  const sel = byId("filterCommune");
+  sel.innerHTML = '<option value="ALL">Toutes</option>' + communes.map(c=>`<option value="${c}">${c}</option>`).join("");
+}
+
+function renderEtabTable(){
+  const q = norm(byId("searchEtab").value);
+  const t = byId("filterType").value;
+  const c = byId("filterCommune").value;
+
+  const rows = ETABLISSEMENTS
+    .filter(e=> t==="ALL" ? true : e.type===t)
+    .filter(e=> c==="ALL" ? true : e.commune===c)
+    .filter(e=> {
+      if(!q) return true;
+      return norm(e.nom).includes(q) || norm(e.uai).includes(q);
+    })
+    .sort((a,b)=> (a.type===b.type ? a.nom.localeCompare(b.nom) : (a.type==="CENTRALE" ? -1 : 1)));
+
+  const tbody = byId("etabTable").querySelector("tbody");
+  tbody.innerHTML = rows.map(e=>`
+    <tr data-uai="${e.uai}" style="cursor:pointer;">
+      <td><span class="tag ${e.type==="CENTRALE"?"c":"s"}">${e.type}</span></td>
+      <td class="mono">${e.uai}</td>
+      <td>${e.nom}</td>
+      <td>${e.commune||""}</td>
+      <td>${fmt(e.repas_total_jour,0)}</td>
+      <td><span class="small">clic</span></td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll("tr").forEach(tr => {
+    tr.addEventListener("click", ()=> {
+      selectedUAI = tr.dataset.uai;
+      showEtabDetails(selectedUAI);
+    });
+  });
+}
+
+function showEtabDetails(uai){
+  const e = getEtab(uai);
+  if(!e) return;
+  byId("toggleRoleBtn").disabled = false;
+  byId("centerOnMapBtn").disabled = !(e.lat && e.lon);
+
+  byId("etabDetails").innerHTML = `
+    <div class="row" style="justify-content:space-between;">
+      <div><span class="tag ${e.type==="CENTRALE"?"c":"s"}">${e.type}</span></div>
+      <div class="mono">${e.uai}</div>
+    </div>
+    <div style="margin-top:10px; font-weight:700;">${e.nom}</div>
+    <div class="small" style="margin-top:6px;">${e.commune||""}${e.adresse?(" • "+e.adresse):""}</div>
+    <div class="row" style="margin-top:10px;">
+      <div class="pill">Midi: <b>${fmt(e.repas_midi,0)}</b></div>
+      <div class="pill">Soir: <b>${fmt(e.repas_soir,0)}</b></div>
+      <div class="pill">Total/j: <b>${fmt(e.repas_total_jour,0)}</b></div>
+    </div>
+    <div class="small" style="margin-top:10px;">Coordonnées: ${e.lat&&e.lon ? `<span class="mono">${fmt(e.lat,5)}, ${fmt(e.lon,5)}</span>` : "<span style='color:var(--warn)'>manquantes</span>"}</div>
+  `;
+}
+
+byId("toggleRoleBtn").addEventListener("click", ()=> {
+  const e = getEtab(selectedUAI);
+  if(!e) return;
+  e.type = (e.type==="CENTRALE") ? "SATELLITE" : "CENTRALE";
+  populateCommunes();
+  renderEtabTable();
+  showEtabDetails(selectedUAI);
+});
+
+byId("syncCentralesBtn").addEventListener("click", ()=> {
+  refreshCentraleDropdowns();
+  renderAffectationsTable();
+  renderProposalsTable();
+  renderSynthese();
+  byId("paramsSaved").textContent = "✅ Centrales synchronisées.";
+});
+
+function loadParamsUI(){
+  byId("pDepart").value = PARAMETRES.heure_depart || "06:00";
+  byId("pRetour").value = PARAMETRES.heure_retour || "08:00";
+  byId("pVitesse").value = PARAMETRES.vitesse_kmh || 40;
+  byId("pDistMax").value = PARAMETRES.distance_max_km || 60;
+  byId("pWD").value = PARAMETRES.poids_distance ?? 0.5;
+  byId("pWR").value = PARAMETRES.poids_repas ?? 0.5;
+}
+loadParamsUI();
+
+byId("saveParamsBtn").addEventListener("click", ()=> {
+  PARAMETRES.heure_depart = byId("pDepart").value || "06:00";
+  PARAMETRES.heure_retour = byId("pRetour").value || "08:00";
+  PARAMETRES.vitesse_kmh = Number(byId("pVitesse").value || 40);
+  PARAMETRES.distance_max_km = Number(byId("pDistMax").value || 60);
+  PARAMETRES.poids_distance = Number(byId("pWD").value || 0.5);
+  PARAMETRES.poids_repas = Number(byId("pWR").value || 0.5);
+  byId("paramsSaved").textContent = "✅ Paramètres enregistrés.";
+});
+
+byId("centerOnMapBtn").addEventListener("click", ()=> {
+  const e = getEtab(selectedUAI);
+  if(!e || !e.lat || !e.lon) return;
+  document.querySelector('.tabbtn[data-tab="carte"]').click();
+  setTimeout(()=> { if(map) map.setView([e.lat, e.lon], 12); }, 200);
+});
+
+byId("searchEtab").addEventListener("input", renderEtabTable);
+byId("filterType").addEventListener("change", renderEtabTable);
+byId("filterCommune").addEventListener("change", renderEtabTable);
+
+// Carte
+let map=null, layerGroup=null;
+let selectedMapUAI=null;
+
+function initMap(){
+  map = L.map('map', { zoomControl:true });
+  map.setView([-21.12, 55.53], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  layerGroup = L.layerGroup().addTo(map);
+}
+function mapInvalidate(){ if(map) map.invalidateSize(); }
+
+function refreshCentraleDropdowns(){
+  const centrals = centralesList().sort((a,b)=>a.nom.localeCompare(b.nom));
+  const opt = centrals.map(c=>`<option value="${c.uai}">${c.nom}</option>`).join("");
+  byId("mapCentrale").innerHTML = `<option value="ALL">Toutes</option>` + opt;
+}
+
+function refreshMap(){
+  if(!map) initMap();
+  layerGroup.clearLayers();
+
+  const filterC = byId("mapCentrale").value;
+  const filterS = byId("mapStatut").value;
+
+  let allowedSat = null;
+  if(filterC !== "ALL"){
+    allowedSat = new Set(
+      AFFECTATIONS
+        .filter(a => a.centrale_uai===filterC)
+        .filter(a => filterS==="ALL" ? true : a.statut===filterS)
+        .map(a => a.satellite_uai)
+    );
+  }
+
+  centralesList().forEach(c => {
+    if(!c.lat || !c.lon) return;
+    if(filterC!=="ALL" && c.uai!==filterC) return;
+    const m = L.circleMarker([c.lat,c.lon], { radius:9, weight:2, color:"#4da3ff", fillColor:"#4da3ff", fillOpacity:0.7 }).addTo(layerGroup);
+    m.bindTooltip(`🏭 ${c.nom}`, {direction:"top"});
+    m.on("click", ()=> { selectedMapUAI=c.uai; showMapSide(c.uai); });
+  });
+
+  satellitesList().forEach(s => {
+    if(!s.lat || !s.lon) return;
+    if(allowedSat && !allowedSat.has(s.uai)) return;
+    const m = L.circleMarker([s.lat,s.lon], { radius:7, weight:1.5, color:"#ffc14d", fillColor:"#ffc14d", fillOpacity:0.7 }).addTo(layerGroup);
+    m.bindTooltip(`🍴 ${s.nom}`, {direction:"top"});
+    m.on("click", ()=> { selectedMapUAI=s.uai; showMapSide(s.uai); });
+  });
+}
+
+function currentAssignment(uaiSat){
+  const valid = AFFECTATIONS.find(a=>a.satellite_uai===uaiSat && a.statut==="VALIDEE");
+  if(valid) return valid;
+  const prop = AFFECTATIONS.find(a=>a.satellite_uai===uaiSat && a.statut==="PROPOSEE");
+  return prop || null;
+}
+
+function showMapSide(uai){
+  const e = getEtab(uai);
+  if(!e) return;
+  const isSat = e.type==="SATELLITE";
+  const assign = isSat ? currentAssignment(uai) : null;
+  const centrale = assign ? getEtab(assign.centrale_uai) : null;
+
+  byId("mapSide").innerHTML = `
+    <div class="row" style="justify-content:space-between;">
+      <div><span class="tag ${e.type==="CENTRALE"?"c":"s"}">${e.type}</span></div>
+      <div class="mono">${e.uai}</div>
+    </div>
+    <div style="margin-top:10px; font-weight:700;">${e.nom}</div>
+    <div class="small" style="margin-top:6px;">${e.commune||""}</div>
+    <div class="row" style="margin-top:10px;">
+      <div class="pill">Total/j: <b>${fmt(e.repas_total_jour,0)}</b></div>
+      ${isSat && centrale ? `<div class="pill">Centrale: <b>${centrale.nom}</b></div>` : ``}
+    </div>
+    ${isSat && assign ? `<div class="small" style="margin-top:10px;">Distance: <b>${assign.distance_km?fmt(assign.distance_km,1):"—"}</b> km • Temps: <b>${assign.temps_min?fmt(assign.temps_min,0):"—"}</b> min</div>` : ``}
+  `;
+  byId("calcForOneBtn").disabled = !isSat;
+  byId("proposeForOneBtn").disabled = !isSat;
+}
+
+byId("refreshMapBtn").addEventListener("click", refreshMap);
+byId("mapCentrale").addEventListener("change", refreshMap);
+byId("mapStatut").addEventListener("change", refreshMap);
+
+byId("calcForOneBtn").addEventListener("click", ()=> {
+  const sat = getEtab(selectedMapUAI);
+  if(!sat || sat.type!=="SATELLITE") return;
+  AFFECTATIONS.filter(a=>a.satellite_uai===sat.uai).forEach(a => {
+    const cen = getEtab(a.centrale_uai);
+    if(!cen || !sat.lat || !sat.lon || !cen.lat || !cen.lon) return;
+    const d = haversineKm(sat.lat,sat.lon,cen.lat,cen.lon);
+    a.distance_km = round(d,2);
+    a.temps_min = round(estTimeMin(d),0);
+  });
+  renderAffectationsTable();
+  showMapSide(sat.uai);
+  byId("calcStatus").textContent = "✅ Distances mises à jour pour 1 satellite.";
+});
+
+byId("proposeForOneBtn").addEventListener("click", ()=> {
+  const sat = getEtab(selectedMapUAI);
+  if(!sat || sat.type!=="SATELLITE") return;
+  proposeForSatellite(sat.uai);
+  renderProposalsTable();
+  showMapSide(sat.uai);
+});
+
+// Calculs table
+function renderAffectationsTable(){
+  const tbody = byId("affTable").querySelector("tbody");
+  const rows = AFFECTATIONS.slice().sort((a,b)=> (a.statut===b.statut ? a.satellite_uai.localeCompare(b.satellite_uai) : (a.statut==="VALIDEE" ? -1 : 1)));
+  tbody.innerHTML = rows.map(a => {
+    const s = getEtab(a.satellite_uai);
+    const c = getEtab(a.centrale_uai);
+    return `<tr>
+      <td><span class="tag ${a.statut==="VALIDEE"?"c":"s"}">${a.statut}</span></td>
+      <td>${s? s.nom : a.satellite_uai}</td>
+      <td>${c? c.nom : a.centrale_uai}</td>
+      <td>${fmt(a.repas_total_jour,0)}</td>
+      <td>${a.distance_km!=null ? fmt(a.distance_km,1) : ""}</td>
+      <td>${a.temps_min!=null ? fmt(a.temps_min,0) : ""}</td>
+      <td>${a.score!=null ? fmt(a.score,3) : ""}</td>
+    </tr>`;
+  }).join("");
+}
+
+byId("calcAllBtn").addEventListener("click", ()=> {
+  let done=0, skipped=0;
+  AFFECTATIONS.forEach(a => {
+    const sat = getEtab(a.satellite_uai);
+    const cen = getEtab(a.centrale_uai);
+    if(!sat || !cen || !sat.lat || !sat.lon || !cen.lat || !cen.lon){ skipped++; return; }
+    const d = haversineKm(sat.lat,sat.lon,cen.lat,cen.lon);
+    a.distance_km = round(d,2);
+    a.temps_min = round(estTimeMin(d),0);
+    done++;
+  });
+  byId("calcStatus").textContent = `✅ Calcul terminé : ${done} lignes mises à jour (${skipped} ignorées).`;
+  renderAffectationsTable();
+});
+
+byId("clearCalcBtn").addEventListener("click", ()=> {
+  AFFECTATIONS.forEach(a => { a.distance_km=null; a.temps_min=null; a.score=null; });
+  byId("calcStatus").textContent = "✅ Distances/temps/score effacés.";
+  renderAffectationsTable();
+});
+
+// Optimisation
+function maxRepasSatellites(){
+  const sats = satellitesList();
+  const m = Math.max(1, ...sats.map(s=>s.repas_total_jour||0));
+  return m;
+}
+
+function proposeForSatellite(satUAI){
+  const sat = getEtab(satUAI);
+  if(!sat || sat.type!=="SATELLITE") return;
+
+  let row = AFFECTATIONS.find(a=>a.satellite_uai===satUAI && a.statut==="PROPOSEE");
+  if(!row){
+    row = {
+      satellite_uai: satUAI,
+      centrale_uai: "",
+      repas_midi: sat.repas_midi||0,
+      repas_soir: sat.repas_soir||0,
+      repas_total_jour: sat.repas_total_jour||0,
+      distance_km: null, temps_min: null, score: null,
+      statut: "PROPOSEE",
+      commentaire: ""
+    };
+    AFFECTATIONS.push(row);
+  } else {
+    row.repas_midi = sat.repas_midi||0;
+    row.repas_soir = sat.repas_soir||0;
+    row.repas_total_jour = sat.repas_total_jour||0;
+  }
+
+  const centrals = centralesList().filter(c=>c.lat && c.lon);
+  if(!sat.lat || !sat.lon){
+    row.commentaire = "Coordonnées satellite manquantes";
+    return;
+  }
+
+  const candidates = centrals.map(c => {
+    const d = haversineKm(sat.lat,sat.lon,c.lat,c.lon);
+    return { uai:c.uai, d };
+  }).sort((a,b)=>a.d-b.d);
+
+  const maxD = Math.max(...candidates.map(x=>x.d), 1);
+  const maxR = maxRepasSatellites();
+  const wD = Number(PARAMETRES.poids_distance||0.5);
+  const wR = Number(PARAMETRES.poids_repas||0.5);
+  const distMax = Number(PARAMETRES.distance_max_km||60);
+
+  let considered = candidates.filter(x=>x.d <= distMax);
+  if(considered.length===0) considered = candidates.slice(0,3);
+
+  const scored = considered.map(x => {
+    const distance_norm = 1 - (x.d / maxD);
+    const repas_norm = (sat.repas_total_jour||0) / maxR;
+    const score = (wD*distance_norm) + (wR*repas_norm);
+    return {...x, score};
+  }).sort((a,b)=>b.score-a.score);
+
+  const best = scored[0];
+  row.centrale_uai = best.uai;
+  row.distance_km = round(best.d,2);
+  row.temps_min = round(estTimeMin(best.d),0);
+  row.score = round(best.score,4);
+  row.commentaire = (best.d>distMax) ? "Au-delà distance max (fallback)" : "";
+}
+
+function renderProposalsTable(){
+  const tbody = byId("proposalsTable").querySelector("tbody");
+  const proposals = AFFECTATIONS.filter(a=>a.statut==="PROPOSEE");
+  const centrals = centralesList().sort((a,b)=>a.nom.localeCompare(b.nom));
+
+  tbody.innerHTML = proposals.map(a => {
+    const s = getEtab(a.satellite_uai);
+    const options = centrals.map(cc=>`<option value="${cc.uai}" ${cc.uai===a.centrale_uai?"selected":""}>${cc.nom}</option>`).join("");
+    return `<tr>
+      <td>${s? s.nom : a.satellite_uai}</td>
+      <td>${fmt(a.repas_total_jour,0)}</td>
+      <td>
+        <select data-sat="${a.satellite_uai}" class="manualCentrale">
+          <option value="">(choisir)</option>
+          ${options}
+        </select>
+      </td>
+      <td>${a.distance_km!=null?fmt(a.distance_km,1):""}</td>
+      <td>${a.temps_min!=null?fmt(a.temps_min,0):""}</td>
+      <td>${a.score!=null?fmt(a.score,3):""}</td>
+      <td class="row" style="gap:8px;">
+        <button class="btn ok validateBtn" data-sat="${a.satellite_uai}">Valider</button>
+        <button class="btn bad refuseBtn" data-sat="${a.satellite_uai}">Refuser</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  tbody.querySelectorAll(".manualCentrale").forEach(sel => {
+    sel.addEventListener("change", ()=> {
+      const satUAI = sel.dataset.sat;
+      const prop = AFFECTATIONS.find(x=>x.satellite_uai===satUAI && x.statut==="PROPOSEE");
+      if(!prop) return;
+      prop.centrale_uai = sel.value;
+
+      const sat = getEtab(satUAI);
+      const cen = getEtab(sel.value);
+      if(sat && cen && sat.lat && sat.lon && cen.lat && cen.lon){
+        const d = haversineKm(sat.lat,sat.lon,cen.lat,cen.lon);
+        prop.distance_km = round(d,2);
+        prop.temps_min = round(estTimeMin(d),0);
+
+        const maxR = maxRepasSatellites();
+        const wD = Number(PARAMETRES.poids_distance||0.5);
+        const wR = Number(PARAMETRES.poids_repas||0.5);
+        const distance_norm = 1 - (d / 200);
+        const repas_norm = (sat.repas_total_jour||0) / maxR;
+        prop.score = round((wD*distance_norm)+(wR*repas_norm),4);
+      }
+      renderProposalsTable();
+    });
+  });
+
+  tbody.querySelectorAll(".validateBtn").forEach(btn => {
+    btn.addEventListener("click", ()=> {
+      const satUAI = btn.dataset.sat;
+      AFFECTATIONS = AFFECTATIONS.filter(x=> !(x.satellite_uai===satUAI && x.statut==="VALIDEE"));
+      const prop = AFFECTATIONS.find(x=>x.satellite_uai===satUAI && x.statut==="PROPOSEE");
+      if(prop) prop.statut = "VALIDEE";
+      byId("optimStatus").textContent = "✅ Affectation validée.";
+      renderProposalsTable();
+      renderSynthese();
+      refreshMap();
+    });
+  });
+
+  tbody.querySelectorAll(".refuseBtn").forEach(btn => {
+    btn.addEventListener("click", ()=> {
+      const satUAI = btn.dataset.sat;
+      const prop = AFFECTATIONS.find(x=>x.satellite_uai===satUAI && x.statut==="PROPOSEE");
+      if(prop) prop.statut = "REFUSEE";
+      byId("optimStatus").textContent = "✅ Proposition refusée.";
+      renderProposalsTable();
+      refreshMap();
+    });
+  });
+}
+
+byId("proposeAllBtn").addEventListener("click", ()=> {
+  satellitesList().forEach(s => proposeForSatellite(s.uai));
+  byId("optimStatus").textContent = "✅ Propositions générées.";
+  renderProposalsTable();
+  refreshMap();
+});
+
+byId("resetProposalsBtn").addEventListener("click", ()=> {
+  AFFECTATIONS = AFFECTATIONS.filter(a=>a.statut!=="PROPOSEE");
+  byId("optimStatus").textContent = "✅ Propositions supprimées.";
+  renderProposalsTable();
+  refreshMap();
+});
+
+// Synthèse + export
+function renderSynthese(){
+  const centrals = centralesList();
+  const val = AFFECTATIONS.filter(a=>a.statut==="VALIDEE");
+
+  const rows = centrals.map(c => {
+    const sub = val.filter(a=>a.centrale_uai===c.uai);
+    const distList = sub.map(a=>a.distance_km).filter(x=>x!=null);
+    const timeList = sub.map(a=>a.temps_min).filter(x=>x!=null);
+    const distAvg = distList.length ? distList.reduce((s,x)=>s+x,0)/distList.length : null;
+    const timeAvg = timeList.length ? timeList.reduce((s,x)=>s+x,0)/timeList.length : null;
+    return {
+      centrale_nom: c.nom,
+      satellites: sub.length,
+      repas_midi: sub.reduce((s,a)=>s+(a.repas_midi||0),0),
+      repas_soir: sub.reduce((s,a)=>s+(a.repas_soir||0),0),
+      repas_j: sub.reduce((s,a)=>s+(a.repas_total_jour||0),0),
+      distAvg: distAvg!=null?round(distAvg,2):null,
+      timeAvg: timeAvg!=null?round(timeAvg,0):null
+    };
+  }).sort((a,b)=>b.repas_j-a.repas_j);
+
+  byId("kpiCentrales").textContent = centrals.length;
+  byId("kpiSatellites").textContent = satellitesList().length;
+  byId("kpiRepas").textContent = val.reduce((s,a)=>s+(a.repas_total_jour||0),0).toLocaleString("fr-FR");
+  const allDist = val.map(a=>a.distance_km).filter(x=>x!=null);
+  byId("kpiDist").textContent = allDist.length ? fmt(allDist.reduce((s,x)=>s+x,0)/allDist.length,1) : "—";
+
+  const tbody = byId("synthTable").querySelector("tbody");
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.centrale_nom}</td>
+      <td>${r.satellites}</td>
+      <td>${r.repas_midi.toLocaleString("fr-FR")}</td>
+      <td>${r.repas_soir.toLocaleString("fr-FR")}</td>
+      <td><b>${r.repas_j.toLocaleString("fr-FR")}</b></td>
+      <td>${r.distAvg!=null?fmt(r.distAvg,1):""}</td>
+      <td>${r.timeAvg!=null?fmt(r.timeAvg,0):""}</td>
+    </tr>
+  `).join("");
+  byId("exportStatus").textContent = "";
+}
+
+function downloadText(filename, text){
+  const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function toCSV(rows, headers){
+  const esc = (v) => {
+    if(v===null||v===undefined) return "";
+    const s = String(v).replaceAll('"','""');
+    return /[",
+;]/.test(s) ? `"${s}"` : s;
+  };
+  const lines = [];
+  lines.push(headers.join(";"));
+  rows.forEach(r => lines.push(headers.map(h=>esc(r[h])).join(";")));
+  return lines.join("
+");
+}
+
+byId("exportAffectBtn").addEventListener("click", ()=> {
+  const headers = ["satellite_uai","centrale_uai","repas_midi","repas_soir","repas_total_jour","distance_km","temps_min","score","statut","commentaire"];
+  downloadText("AFFECTATIONS.csv", toCSV(AFFECTATIONS, headers));
+  byId("exportStatus").textContent = "✅ Export AFFECTATIONS.csv généré.";
+});
+
+byId("exportSynthBtn").addEventListener("click", ()=> {
+  const centrals = centralesList();
+  const val = AFFECTATIONS.filter(a=>a.statut==="VALIDEE");
+  const rows = centrals.map(c => {
+    const sub = val.filter(a=>a.centrale_uai===c.uai);
+    const distList = sub.map(a=>a.distance_km).filter(x=>x!=null);
+    const timeList = sub.map(a=>a.temps_min).filter(x=>x!=null);
+    return {
+      centrale_uai: c.uai,
+      centrale_nom: c.nom,
+      satellites: sub.length,
+      repas_midi: sub.reduce((s,a)=>s+(a.repas_midi||0),0),
+      repas_soir: sub.reduce((s,a)=>s+(a.repas_soir||0),0),
+      repas_total_jour: sub.reduce((s,a)=>s+(a.repas_total_jour||0),0),
+      distance_moy_km: distList.length ? round(distList.reduce((s,x)=>s+x,0)/distList.length,2) : "",
+      temps_moy_min: timeList.length ? round(timeList.reduce((s,x)=>s+x,0)/timeList.length,0) : ""
+    };
+  });
+  const headers = ["centrale_uai","centrale_nom","satellites","repas_midi","repas_soir","repas_total_jour","distance_moy_km","temps_moy_min"];
+  downloadText("SYNTHESE_CENTRALES.csv", toCSV(rows, headers));
+  byId("exportStatus").textContent = "✅ Export SYNTHESE_CENTRALES.csv généré.";
+});
+
+// Import JSON
+function exampleJSON(){
+  return JSON.stringify({ETABLISSEMENTS: ETABLISSEMENTS.slice(0,5), AFFECTATIONS: AFFECTATIONS.slice(0,5), PARAMETRES}, null, 2);
+}
+byId("fillExampleBtn").addEventListener("click", ()=> { byId("importArea").value = exampleJSON(); });
+
+byId("importBtn").addEventListener("click", ()=> {
+  try{
+    const obj = JSON.parse(byId("importArea").value);
+    if(obj.ETABLISSEMENTS) ETABLISSEMENTS = obj.ETABLISSEMENTS;
+    if(obj.AFFECTATIONS) AFFECTATIONS = obj.AFFECTATIONS;
+    if(obj.PARAMETRES) PARAMETRES = obj.PARAMETRES;
+    computeTotals();
+    populateCommunes();
+    refreshCentraleDropdowns();
+    renderEtabTable();
+    renderAffectationsTable();
+    renderProposalsTable();
+    renderSynthese();
+    refreshMap();
+    loadParamsUI();
+    byId("importStatus").textContent = "✅ Import OK";
+  }catch(e){
+    byId("importStatus").textContent = "❌ JSON invalide : " + e.message;
+  }
+});
+
+// Boot
+populateCommunes();
+refreshCentraleDropdowns();
+renderEtabTable();
+renderAffectationsTable();
+renderProposalsTable();
+renderSynthese();
+</script>
+</body>
+</html>
